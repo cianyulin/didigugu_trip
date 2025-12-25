@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小嘀咕的冒險旅程 🧸</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; background-color: #fff; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
+        
+        .leaflet-tile-pane { filter: saturate(1.4) contrast(1.1); }
+        .custom-label-container { display: flex; flex-direction: column; align-items: center; transform: translateY(-15px); }
+        .custom-label { background: #fff; color: #333; border-radius: 8px; padding: 4px 10px; font-weight: 900; font-size: 15px; box-shadow: 0 3px 8px rgba(0,0,0,0.3); white-space: nowrap; border: 2px solid #333; }
+        
+        .digu-icon { 
+            transition: none !important; 
+            z-index: 5000 !important; 
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.4));
+        }
+        .face-left { transform: scaleX(-1); }
+
+        #photo-frame { 
+            position: fixed; bottom: 30px; right: 30px; width: 250px; 
+            background: #fff; padding: 12px 12px 45px 12px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5); 
+            transform: rotate(-5deg) translateY(400px); 
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease-in-out, width 0.4s ease; 
+            z-index: 3000; opacity: 0; border-radius: 2px; pointer-events: none; will-change: transform, opacity; 
+        }
+        #photo-frame.landscape { width: 450px; right: 20px; transform: rotate(3deg) translateY(400px); }
+        #photo-frame.show { transform: rotate(-3deg) translateY(0); opacity: 1; pointer-events: auto; }
+        #photo-frame.landscape.show { transform: rotate(2deg) translateY(0); opacity: 1; }
+        #photo-img { width: 100%; height: auto; display: block; border: 1px solid #eee; min-height: 150px; background: #f0f0f0; }
+        #photo-caption { font-family: 'Segoe Print', 'Chalkboard SE', sans-serif; color: #444; margin-top: 15px; text-align: center; font-weight: bold; font-size: 1.2rem; }
+
+        #controls { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; text-align: center; width: 90%; pointer-events: none; }
+        #controls > * { pointer-events: auto; }
+        #status-bar { background: rgba(0, 0, 0, 0.85); color: #fff; padding: 10px 25px; border-radius: 50px; font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; display: inline-block; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.3s; }
+        button { background: #e63946; color: white; border: none; padding: 12px 30px; border-radius: 50px; font-size: 18px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 0 #a01a23; transition: transform 0.1s; margin: 5px; }
+        button:hover { background: #ff4d5a; }
+        button:active { transform: translateY(4px); box-shadow: none; }
+        
+        #music-control { position: fixed; bottom: 20px; left: 20px; z-index: 2000; background: rgba(0,0,0,0.7); color: white; border: none; padding: 10px 15px; border-radius: 50%; font-size: 20px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        #music-control:hover { background: rgba(0,0,0,0.9); }
+        #pause-control { position: fixed; bottom: 80px; left: 20px; z-index: 2000; background: rgba(0,0,0,0.7); color: white; border: none; padding: 10px 15px; border-radius: 50%; font-size: 20px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: none; }
+        #pause-control:hover { background: rgba(0,0,0,0.9); }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="photo-frame"><img id="photo-img" src="" alt="Travel Photo"><div id="photo-caption">My Memory</div></div>
+    <div id="controls"><div id="status-bar">小嘀咕整理行李中... 🎒</div><br><button id="start-btn" onclick="startJourney()">出發去冒險! 🧸</button></div>
+    <button id="music-control" onclick="toggleMusic()" title="音樂開關">🎵</button>
+    <button id="pause-control" onclick="togglePause()" title="暫停/繼續">⏸️</button>
+    <audio id="background-music" loop preload="auto"><source src="music/background-music.mp3" type="audio/mpeg"><source src="music/background-music.ogg" type="audio/ogg">您的瀏覽器不支援音樂播放</audio>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0.1 }).setView([24.1477, 120.6736], 5);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+
+        const route = [
+            // 1. 家裡出發
+            { country: "台灣", city: "家裡", lat: 24.1477, lng: 120.6736, type: "start", icon: "🏠" },
+            
+            // 2. 泰國之旅
+            { country: "泰國", city: "曼谷", lat: 13.7563, lng: 100.5018, type: "plane", icon: "✈️", image: "digu_bangkok.jpg" },
+            { country: "泰國", city: "華欣", lat: 12.5684, lng: 99.9577, type: "bus", icon: "🚌", image: "digu_huahin.jpg" },
+            { country: "泰國", city: "曼谷", lat: 13.7563, lng: 100.5018, type: "bus", icon: "🚌", image: "digu_bangkok2.jpg"  }, 
+            { country: "台灣", city: "家裡", lat: 24.1477, lng: 120.6736, type: "plane", icon: "🏠", image: "digu_home1.jpg"  }, 
+
+            // 3. 金門之旅
+            { country: "台灣", city: "金門", lat: 24.4403, lng: 118.3236, type: "plane", icon: "✈️", image: "digu_kinmen.jpg" },
+            { country: "台灣", city: "家裡", lat: 24.1477, lng: 120.6736, type: "plane", icon: "🏠", image: "digu_home2.jpg" }, 
+
+            // 4. 歐洲之旅
+            { country: "阿聯酋", city: "杜拜", lat: 25.2769, lng: 55.2962, type: "plane", icon: "✈️", image: "digu_dubai.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.0379, lng: 8.5622, type: "plane", icon: "✈️", image: "digu_frankfort.jpg" },
+            
+            { country: "比利時", city: "布魯塞爾", lat: 50.8503, lng: 4.3517, type: "train", icon: "🚆", image: "digu_brussels.jpg" },
+            { country: "比利時", city: "根特", lat: 51.0543, lng: 3.7174, type: "train", icon: "🚆", image: "digu_gent.jpg" },
+            { country: "比利時", city: "布魯塞爾", lat: 50.8503, lng: 4.3517, type: "train", icon: "🚆" }, 
+            { country: "比利時", city: "布魯日", lat: 51.2093, lng: 3.2247, type: "train", icon: "🚆", image: "digu_burge.jpg" },
+            { country: "比利時", city: "布魯塞爾", lat: 50.8503, lng: 4.3517, type: "train", icon: "🚆" },
+            
+            { country: "法國", city: "巴黎", lat: 48.8566, lng: 2.3522, type: "bus", icon: "🚌", image: "digu_paris.jpg" },
+            { country: "法國", city: "迪士尼", lat: 48.8698, lng: 2.7828, type: "train", icon: "🚇", image: "digu_disney.jpg" }, 
+            { country: "法國", city: "巴黎", lat: 48.8566, lng: 2.3522, type: "bus", icon: "🚌", image: "digu_paris2.jpg" },    
+
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆", image: "digu_frankfort2.jpg" }, 
+            { country: "德國", city: "科隆", lat: 50.9375, lng: 6.9603, type: "train", icon: "🚆", image: "digu_koln.jpg" },
+            { country: "盧森堡", city: "盧森堡", lat: 49.6116, lng: 6.1319, type: "bus", icon: "🚌", image: "digu_lusenburg.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+            
+            { country: "德國", city: "漢堡", lat: 53.5511, lng: 9.9937, type: "train", icon: "🚆", image: "digu_hamburg.jpg" },
+            { country: "挪威", city: "奧斯陸", lat: 59.9139, lng: 10.7522, type: "bus", icon: "🚌", image: "digu_oslo.jpg" },
+            { country: "挪威", city: "特羅姆瑟", lat: 69.6492, lng: 18.9553, type: "plane", icon: "✈️", image: "digu_tromso.jpg" },
+            { country: "挪威", city: "塞尼亞島", lat: 69.4000, lng: 17.5000, type: "car", icon: "🚗", image: "digu_senja.jpg" }, 
+            { country: "挪威", city: "特羅姆瑟", lat: 69.6492, lng: 18.9553, type: "car", icon: "🚗", image: "digu_orola.jpg" }, 
+            { country: "挪威", city: "奧斯陸", lat: 59.9139, lng: 10.7522, type: "plane", icon: "✈️", image: "digu_oslo2.jpg" },
+            { country: "德國", city: "柏林", lat: 52.5200, lng: 13.4050, type: "plane", icon: "✈️", image: "digu_berlin.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+
+            { country: "德國", city: "慕尼黑", lat: 48.1351, lng: 11.5820, type: "bus", icon: "🚌", image: "digu_muchen.jpg" },
+            { country: "德國", city: "國王湖", lat: 47.5715, lng: 12.9880, type: "train", icon: "🚆", image: "digu_kinglake.jpg" },
+            { country: "德國", city: "慕尼黑", lat: 48.1351, lng: 11.5820, type: "train", icon: "🚆", image: "digu_muchen2.jpg" },
+
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+            { country: "奧地利", city: "維也納", lat: 48.2082, lng: 16.3738, type: "bus", icon: "🚌", image: "digu_wine.jpg" },
+            { country: "斯洛伐克", city: "布拉迪斯拉發", lat: 48.1486, lng: 17.1077, type: "bus", icon: "🚌", image: "digu_slovak.jpg" },
+            { country: "奧地利", city: "維也納", lat: 48.2082, lng: 16.3738, type: "bus", icon: "🚌", image: "digu_wine2.jpg" },
+            { country: "奧地利", city: "哈爾施塔特", lat: 47.5622, lng: 13.6493, type: "bus", icon: "🚌", image: "digu_hallstadt.jpg" },
+            { country: "奧地利", city: "薩爾斯堡", lat: 47.8095, lng: 13.0550, type: "bus", icon: "🚌", image: "digu_zarsburg.jpg" },
+            { country: "德國", city: "慕尼黑", lat: 48.1351, lng: 11.5820, type: "train", icon: "🚆" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+            
+            { country: "捷克", city: "布拉格", lat: 50.0755, lng: 14.4378, type: "bus", icon: "🚌", image: "digu_jack.jpg" },
+            { country: "捷克", city: "CK小鎮", lat: 48.8109, lng: 14.3152, type: "bus", icon: "🚌", image: "digu_ck.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "bus", icon: "🚌" },
+            
+            { country: "德國", city: "柏林", lat: 52.5200, lng: 13.4050, type: "train", icon: "🚆", image: "digu_berlin2.jpg" },
+            { country: "丹麥", city: "哥本哈根", lat: 55.6761, lng: 12.5683, type: "bus", icon: "🚌", image: "digu_cobenhegen.jpg" },
+            { country: "瑞典", city: "馬爾默", lat: 55.6045, lng: 13.0038, type: "train", icon: "🚆", image: "digu_marmo.jpg" },
+            { country: "丹麥", city: "哥本哈根", lat: 55.6761, lng: 12.5683, type: "train", icon: "🚆", image: "digu_cobenhegen2.jpg" },
+            { country: "德國", city: "柏林", lat: 52.5200, lng: 13.4050, type: "bus", icon: "🚌", image: "digu_berlin3.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+
+            { country: "克羅埃西亞", city: "薩格勒布", lat: 45.8150, lng: 15.9819, type: "plane", icon: "✈️", image: "digu_croasia.jpg" },
+            { country: "克羅埃西亞", city: "羅維尼", lat: 45.0812, lng: 13.6387, type: "bus", icon: "🚌", image: "digu_loveni.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+
+            { country: "義大利", city: "米蘭", lat: 45.4642, lng: 9.1900, type: "plane", icon: "✈️", image: "digu_milan.jpg" },
+            { country: "義大利", city: "比薩", lat: 43.7228, lng: 10.4017, type: "bus", icon: "🚌", image: "digu_piza.jpg" },
+            { country: "義大利", city: "五漁村", lat: 44.1115, lng: 9.7330, type: "train", icon: "🚆", image: "digu_fivefish.jpg" },
+            { country: "義大利", city: "比薩", lat: 43.7228, lng: 10.4017, type: "train", icon: "🚆", image: "digu_piza2.jpg" },
+            { country: "義大利", city: "威尼斯", lat: 45.4408, lng: 12.3155, type: "bus", icon: "🚌", image: "digu_venise.jpg" },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "bus", icon: "🚌" },
+            { country: "瑞士", city: "蘇黎世", lat: 47.3769, lng: 8.5417, type: "train", icon: "🚆", image: "digu_zulish.jpg" },
+            { country: "奧地利", city: "布雷根茨", lat: 47.5031, lng: 9.7471, type: "bus", icon: "🚌", image: "digu_bregenzer.jpg" },
+            { country: "德國", city: "慕尼黑", lat: 48.1351, lng: 11.5820, type: "train", icon: "🚆", image: "digu_muchen3.jpg"  },
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "train", icon: "🚆" },
+
+            { country: "英國", city: "倫敦", lat: 51.5074, lng: -0.1278, type: "plane", icon: "✈️", image: "digu_london.jpg" },
+            { country: "英國", city: "牛津", lat: 51.7520, lng: -1.2577, type: "train", icon: "🚆", image: "digu_newgin.jpg" },
+            { country: "英國", city: "倫敦", lat: 51.5074, lng: -0.1278, type: "train", icon: "🚆", image: "digu_london2.jpg" },
+            
+            { country: "波蘭", city: "華沙", lat: 52.2297, lng: 21.0122, type: "plane", icon: "✈️", image: "digu_warsa.jpg" },
+            { country: "波蘭", city: "克拉科夫", lat: 50.0647, lng: 19.9450, type: "bus", icon: "🚌" }, 
+            { country: "匈牙利", city: "布達佩斯", lat: 47.4979, lng: 19.0402, type: "bus", icon: "🚌", image: "digu_budapest.jpg" },
+            { country: "羅馬尼亞", city: "布加勒斯特", lat: 44.4268, lng: 26.1025, type: "train", icon: "🚆", image: "digu_buchalust.jpg" },
+            { country: "羅馬尼亞", city: "布拉索夫", lat: 45.6427, lng: 25.5902, type: "train", icon: "🚆", image: "digu_brasov.jpg" },
+            { country: "羅馬尼亞", city: "布加勒斯特", lat: 44.4268, lng: 26.1025, type: "train", icon: "🚆", image: "digu_buchalust2.jpg" },
+            { country: "保加利亞", city: "索菲亞", lat: 42.6977, lng: 23.3219, type: "bus", icon: "🚌", image: "digu_sofia.jpg" },
+            { country: "希臘", city: "雅典", lat: 37.9838, lng: 23.7275, type: "plane", icon: "✈️", image: "digu_athen.jpg" },
+            
+            { country: "希臘", city: "邁錫尼", lat: 37.7308, lng: 22.7561, type: "bus", icon: "🚌", image: "digu_mycenae.jpg" },
+            { country: "希臘", city: "雅典", lat: 37.9838, lng: 23.7275, type: "bus", icon: "🚌", image: "digu_athen2.jpg" },
+
+            { country: "德國", city: "法蘭克福", lat: 50.1109, lng: 8.6821, type: "plane", icon: "✈️" },
+            
+            // 6. 歐洲行結束 (回家)
+            { country: "阿聯酋", city: "杜拜", lat: 25.2769, lng: 55.2962, type: "plane", icon: "✈️", image: "digu_dubai2.jpg" },
+            { country: "台灣", city: "家裡", lat: 24.1477, lng: 120.6736, type: "plane", icon: "🏠", image: "digu_home3.jpg" }, 
+
+            // 7. 日本東北之旅
+            { country: "日本", city: "仙台", lat: 38.2682, lng: 140.8693, type: "plane", icon: "✈️", image: "digu_sendai.jpg" },
+            { country: "日本", city: "藏王御釜", lat: 38.1413, lng: 140.4430, type: "bus", icon: "🚌", image: "digu_zao.jpg" },
+            { country: "日本", city: "山形", lat: 38.2554, lng: 140.3396, type: "bus", icon: "🚌", image: "digu_yamagata.jpg" },
+            { country: "日本", city: "福島", lat: 37.7608, lng: 140.4748, type: "train", icon: "🚆", image: "digu_fukushima.jpg" },
+            { country: "台灣", city: "家裡", lat: 24.1477, lng: 120.6736, type: "plane", icon: "🏠", image: "digu_home4.jpg" }, 
+
+            // 8. 上海之旅
+            { country: "中國", city: "上海", lat: 31.2304, lng: 121.4737, type: "plane", icon: "✈️", image: "digu_shanghai.jpg" },
+            { country: "台灣", city: "家裡", lat: 24.1477, lng: 120.6736, type: "plane", icon: "🏠", image: "digu_home5.jpg" } 
+        ];
+
+        let vehicleMarker, pathLine, currentPathCoordinates = [], visitedCities = new Set();
+        const imageCache = new Map();
+        let isPaused = false;
+        let pauseResolve = null;
+
+        const diguIcon = L.icon({
+            iconUrl: 'images/digu_ride.png', 
+            iconSize: [100, 100],            
+            iconAnchor: [50, 50], 
+            className: 'digu-icon'
+        });
+
+        function preloadImage(url) {
+            if (!url || imageCache.has(url)) return;
+            const img = new Image();
+            img.src = 'images/' + url;
+            imageCache.set(url, img);
+        }
+
+        async function startJourney() {
+            document.querySelector('#start-btn').style.display = 'none';
+            document.getElementById('pause-control').style.display = 'block';
+            
+            const backgroundMusic = document.getElementById('background-music');
+            try { await backgroundMusic.play(); } catch (error) { console.log('音樂需互動', error); }
+            
+            map.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.Polyline) map.removeLayer(l); });
+            visitedCities.clear();
+            
+            addLocationMarker(route[0]); 
+            map.setView([route[0].lat, route[0].lng], 6, {animate:false});
+            
+            vehicleMarker = L.marker([route[0].lat, route[0].lng], {icon: diguIcon, zIndexOffset:3000}).addTo(map);
+            currentPathCoordinates = [[route[0].lat, route[0].lng]];
+            
+            pathLine = L.polyline(currentPathCoordinates, {color:'#1d3557', weight:4, opacity:0.8, dashArray:'10,10', lineCap:'round'}).addTo(map);
+
+            if(route[0].image) showPhoto(route[0]);
+
+            for (let i=0; i<route.length-1; i++) {
+                let s = route[i], e = route[i+1];
+                
+                hidePhoto(); 
+                if (e.image) preloadImage(e.image);
+
+                if (e.city === "家裡") {
+                    updateStatus(`小嘀咕回家啦! 🏠`);
+                } else {
+                    updateStatus(`小嘀咕前往 ${e.city}... 💨`);
+                }
+                
+                const iconElement = vehicleMarker.getElement();
+                if (iconElement) {
+                    if (e.lng < s.lng) {
+                        iconElement.classList.add('face-left');
+                    } else {
+                        iconElement.classList.remove('face-left');
+                    }
+                }
+
+                let dist = getDistance(s.lat, s.lng, e.lat, e.lng);
+                let z = 7;
+                
+                // --- 運鏡邏輯修正 (Room In 設為 8, Room Out 回到 5) ---
+                
+                // 1. 曼谷段 (Room In)
+                if (s.city === '曼谷' && e.city === '華欣') {
+                    z = 8; // 放大到 8，避免紅點變巨型
+                } 
+                else if (s.city === '華欣' && e.city === '曼谷') {
+                    z = 8;
+                }
+                else if (s.city === '曼谷' && e.city === '家裡') {
+                    z = 5; // 回家縮小
+                }
+                
+                // 2. 金門段
+                else if (s.city === '家裡' && e.city === '金門') {
+                    z = 8; // 放大到 8
+                }
+                else if (s.city === '金門' && e.city === '家裡') {
+                    z = 5; // 回家縮小
+                }
+                
+                // 3. 一般情況
+                else {
+                    if (e.type==='plane'||dist>600) { z = 5; } 
+                    else if(['倫敦','雅典','華沙','布加勒斯特'].includes(e.city)) { z = 6; } 
+                    else if(dist<100) { z = 9; }
+                }
+                
+                // 執行縮放並等待
+                map.setZoom(z, {animate: true});
+                await wait(1000); 
+
+                await animateMove(s, e);
+                
+                if (!visitedCities.has(e.city)) { addLocationMarker(e); visitedCities.add(e.city); } else { addDot(e); }
+                
+                if (e.image) { showPhoto(e); await wait(2000); } else { await wait(1200); }
+            }
+            updateStatus("小嘀咕的旅遊，未完待續... 🧸"); 
+            document.querySelector('#start-btn').style.display = 'inline-block';
+            document.getElementById('pause-control').style.display = 'none';
+        }
+
+        function showPhoto(p) {
+            const f = document.getElementById('photo-frame');
+            const i = document.getElementById('photo-img');
+            const c = document.getElementById('photo-caption');
+            i.src = 'images/' + p.image;
+            c.innerText = `🐾 小嘀咕在 ${p.city}`;
+            f.classList.remove('show', 'landscape');
+            i.onload = function() {
+                if (this.naturalWidth > this.naturalHeight) f.classList.add('landscape');
+                void f.offsetWidth; 
+                f.classList.add('show');
+            };
+            if (i.complete) i.onload();
+            i.onerror = () => f.classList.remove('show');
+        }
+
+        function hidePhoto() { document.getElementById('photo-frame').classList.remove('show'); }
+
+        function animateMove(s, e) {
+            return new Promise(resolve => {
+                let startT = performance.now(), dist = getDistance(s.lat, s.lng, e.lat, e.lng);
+                let dur = Math.min(Math.max(dist*2.5, 1500), 3500); 
+                function frame(now) {
+                    let p = Math.min((now-startT)/dur, 1);
+                    let easeP = p < .5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
+                    
+                    let lat = s.lat + (e.lat-s.lat)*easeP, lng = s.lng + (e.lng-s.lng)*easeP;
+                    let curPos = [lat, lng];
+
+                    vehicleMarker.setLatLng(curPos);
+                    let temp = [...currentPathCoordinates, curPos]; 
+                    pathLine.setLatLngs(temp);
+                    map.setView(curPos, map.getZoom(), {animate: false});
+
+                    if(p<1) requestAnimationFrame(frame); else { currentPathCoordinates.push([e.lat,e.lng]); pathLine.setLatLngs(currentPathCoordinates); resolve(); }
+                }
+                requestAnimationFrame(frame);
+            });
+        }
+        
+        function addLocationMarker(p) { L.marker([p.lat, p.lng], {icon: L.divIcon({className:'custom-marker', html:`<div class="custom-label-container"><div class="custom-label">${p.country} ${p.city}</div></div>`, iconSize:[100,40], iconAnchor:[50,20]})}).addTo(map); addDot(p); }
+        function addDot(p) { L.circleMarker([p.lat, p.lng], {radius:5, color:'#333', fillColor:'#e63946', fillOpacity:1, weight:1}).addTo(map); }
+        function getDistance(lat1,lon1,lat2,lon2) { var R=6371, dLat=deg2rad(lat2-lat1), dLon=deg2rad(lon2-lon1), a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2); return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
+        function deg2rad(d) { return d*(Math.PI/180); }        function updateStatus(t) { document.getElementById('status-bar').innerText = t; }
+        
+        function wait(ms) { 
+            return new Promise(resolve => {
+                const startTime = Date.now();
+                function checkPause() {
+                    if (isPaused) {
+                        pauseResolve = () => { if ((ms - (Date.now() - startTime)) <= 0) resolve(); else setTimeout(resolve, ms - (Date.now() - startTime)); };
+                        return;
+                    }
+                    if ((Date.now() - startTime) >= ms) resolve(); else setTimeout(checkPause, 100);
+                }
+                checkPause();
+            });
+        }
+        
+        function toggleMusic() {
+            const m = document.getElementById('background-music'), b = document.getElementById('music-control');
+            if (m.paused) { m.play().then(() => { b.innerHTML = '🎵'; b.title = '暫停音樂'; }).catch(e => console.log(e)); } 
+            else { m.pause(); b.innerHTML = '🔇'; b.title = '播放音樂'; }
+        }
+        function togglePause() {
+            const b = document.getElementById('pause-control'), m = document.getElementById('background-music');
+            if (isPaused) { isPaused = false; b.innerHTML = '⏸️'; if (pauseResolve) { pauseResolve(); pauseResolve=null; } if (!m.paused) m.play().catch(console.log); } 
+            else { isPaused = true; b.innerHTML = '▶️'; }
+        }
+    </script>
+</body>
+</html>
