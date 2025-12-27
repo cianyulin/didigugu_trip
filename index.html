@@ -33,7 +33,23 @@
         #photo-frame.landscape.show { transform: rotate(2deg) translateY(0); opacity: 1; }
         #photo-img { width: 100%; height: auto; display: block; border: 1px solid #eee; min-height: 150px; background: #f0f0f0; }
         #photo-caption { font-family: 'Segoe Print', 'Chalkboard SE', sans-serif; color: #444; margin-top: 15px; text-align: center; font-weight: bold; font-size: 1.2rem; }
+        /* --- 新增：手機版響應式設定 --- */
+        @media (max-width: 768px) {
+            /* 手機版：直式照片位置調整 */
+            #photo-frame {
+                bottom: 120px; /* 往上移，避開手機下方操作區 */
+                right: 10vw;   
+                max-width: 80vw; 
+            }
 
+            /* 手機版：橫式照片寬度調整 */
+            #photo-frame.landscape {
+                width: 90vw;   /* 寬度設為螢幕的 90% */
+                right: 5vw;    /* 左右置中 (5% right) */
+                max-width: none; /* 解除電腦版限制 */
+                transform: rotate(3deg) translateY(400px); /* 保持旋轉角度 */
+            }
+        }
         #controls { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; text-align: center; width: 90%; pointer-events: none; }
         #controls > * { pointer-events: auto; }
         #status-bar { background: rgba(0, 0, 0, 0.85); color: #fff; padding: 10px 25px; border-radius: 50px; font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; display: inline-block; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.3s; }
